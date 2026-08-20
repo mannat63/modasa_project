@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WasteRoute AI Presentation</title>
+    <!-- Reveal.js core CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reset.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css">
+    <!-- Reveal.js Theme (Blood - dark and sleek) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/theme/blood.min.css" id="theme">
+    
+    <!-- Custom minimalist styles -->
+    <style>
+        .reveal h1, .reveal h2, .reveal h3 {
+            text-transform: none;
+            letter-spacing: -0.02em;
+            font-weight: 700;
+        }
+        .reveal h1 { font-size: 3.5em; color: #ff5e62; }
+        .reveal h2 { font-size: 2.5em; color: #ffffff; }
+        .reveal h3 { font-size: 1.8em; color: #a9b0c0; }
+        .reveal p, .reveal li {
+            font-size: 1.1em;
+            line-height: 1.4;
+            color: #d1d5db;
+        }
+        .reveal ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .reveal ul li {
+            margin-bottom: 20px;
+            padding-left: 30px;
+            position: relative;
+        }
+        .reveal ul li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: #ff5e62;
+        }
+        .highlight {
+            color: #ff5e62;
+            font-weight: bold;
+        }
+        .footer-badge {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-size: 0.4em;
+            color: rgba(255,255,255,0.4);
+            font-family: sans-serif;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="footer-badge">WasteRoute AI | Modasa, Gujarat</div>
+
+    <div class="reveal">
+        <div class="slides">
+
+            <!-- SLIDE 1: Title -->
+            <section>
+                <h1>WasteRoute <span style="color:white;">AI</span></h1>
+                <h3>Intelligent Municipal Waste Management</h3>
+                <p style="margin-top: 40px; font-size: 0.8em; color: #888;">Modasa, Gujarat</p>
+            </section>
+
+            <!-- SLIDE 2: The Challenge -->
+            <section>
+                <h2>The Urban <span class="highlight">Challenge</span></h2>
+                <br>
+                <ul>
+                    <li>Rapid tier-2 urbanization outpacing infrastructure</li>
+                    <li>Unoptimized, static manual routing</li>
+                    <li>High operational costs & vehicle emissions</li>
+                </ul>
+            </section>
+
+            <!-- SLIDE 3: The Vision -->
+            <section>
+                <h2>Our <span class="highlight">Vision</span></h2>
+                <br>
+                <ul>
+                    <li>Digitize and map city-wide operations</li>
+                    <li>Slash fleet fuel consumption & carbon footprint</li>
+                    <li>Enable real-time, data-driven municipal decisions</li>
+                </ul>
+            </section>
+
+            <!-- SLIDE 4: Architecture -->
+            <section>
+                <h2>System <span class="highlight">Architecture</span></h2>
+                <br>
+                <ul>
+                    <li><strong>Frontend:</strong> React + Leaflet Geospatial Maps</li>
+                    <li><strong>Backend:</strong> Node.js + Immutable Audit Trails</li>
+                    <li><strong>AI Core:</strong> Groq API (GPT-OSS 120B)</li>
+                </ul>
+            </section>
+
+            <!-- SLIDE 5: Algorithms -->
+            <section>
+                <h2>Algorithmic <span class="highlight">Routing</span></h2>
+                <br>
+                <ul>
+                    <li>Dynamic Urgency Scoring (Fill Level + Priority)</li>
+                    <li>Sub-second geospatial rerouting (Haversine)</li>
+                    <li>Instant adaptation to road blocks & flags</li>
+                </ul>
+            </section>
+
+            <!-- SLIDE 6: AI Center -->
+            <section>
+                <h2>AI Operations <span class="highlight">Center</span></h2>
+                <br>
+                <ul>
+                    <li>Natural language administrative queries</li>
+                    <li>Highly minified context (4x token reduction)</li>
+                    <li>Automated markdown report generation</li>
+                </ul>
+            </section>
+
+            <!-- SLIDE 7: Simulation -->
+            <section>
+                <h2>Simulation <span class="highlight">Sandbox</span></h2>
+                <br>
+                <ul>
+                    <li>Test bin placement before capital expenditure</li>
+                    <li>Analyze fleet capacity dynamically</li>
+                    <li>Projected ROI and distance metrics</li>
+                </ul>
+            </section>
+
+            <!-- SLIDE 8: Impact -->
+            <section>
+                <h2>Real-World <span class="highlight">Impact</span></h2>
+                <br>
+                <ul>
+                    <li>Significant reduction in fleet travel distance</li>
+                    <li>Transparent, immutable logs for accountability</li>
+                    <li>Faster response to illegal dumping hazards</li>
+                </ul>
+            </section>
+
+            <!-- SLIDE 9: Future -->
+            <section>
+                <h2>Future <span class="highlight">Roadmap</span></h2>
+                <br>
+                <ul>
+                    <li>Integration with physical IoT Smart Bins</li>
+                    <li>Predictive fleet maintenance</li>
+                    <li>Multi-city cloud expansion</li>
+                </ul>
+            </section>
+
+            <!-- SLIDE 10: Outro -->
+            <section>
+                <h1>Thank <span style="color:white;">You</span></h1>
+                <h3>Opening the floor for questions.</h3>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- Reveal.js Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.js"></script>
+    <script>
+        Reveal.initialize({
+            controls: true,
+            progress: true,
+            center: true,
+            hash: true,
+            transition: 'slide', // none/fade/slide/convex/concave/zoom
+            backgroundTransition: 'fade'
+        });
+    </script>
+</body>
+</html>
