@@ -12,8 +12,21 @@ const {
   greedyRouteOptimize,
 } = require('../utils/routingEngine');
 
-// ── Groq client ─────────────────────────────────────────
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// ── Groq client (lazy) ──────────────────────────────────
+// Instantiated on first use so a missing GROQ_API_KEY only fails the AI
+// endpoints — it must NOT throw at module load and crash the whole API.
+let _groq = null;
+function getGroq() {
+  if (!_groq) {
+    if (!process.env.GROQ_API_KEY) {
+      const e = new Error('AI is not configured (GROQ_API_KEY missing)');
+      e.statusCode = 503;
+      throw e;
+    }
+    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
+  return _groq;
+}
 
 const SYSTEM_PROMPT = `You are the AI assistant for a municipal waste management system in Modasa, India.
 You have access to live operational data. Answer questions clearly and concisely.
@@ -91,7 +104,7 @@ async function gatherLiveContext() {
 
 // ── Helper: call Groq LLM ───────────────────────────────
 async function callGroq(systemPrompt, userMessage) {
-  const completion = await groq.chat.completions.create({
+  const completion = await getGroq().chat.completions.create({
     model: 'openai/gpt-oss-120b',
     messages: [
       { role: 'system', content: systemPrompt },
@@ -473,7 +486,7 @@ router.post('/action', async (req, res) => {
       const explainPrompt = `You are a waste management operations AI. Given these proposed route changes, write a clear 2-3 sentence explanation of what happened and why. Be specific with truck and zone IDs. Return ONLY plain text, no JSON.`;
       const explainMsg = `Action: ${actionType}\nAffected trucks: ${affectedTrucks.join(', ')}\nChanges:\n${JSON.stringify(proposedChanges)}`;
 
-      const completion = await groq.chat.completions.create({
+      const completion = await getGroq().chat.completions.create({
         model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: explainPrompt },
@@ -595,7 +608,7 @@ router.post('/analyse-zones', async (req, res) => {
     let aiAnalysis = null;
     try {
       const analysisPrompt = `Analyse this zone risk data for a municipal waste system in Modasa, India. Give a brief risk summary and 2-3 actionable recommendations. Return plain text.`;
-      const completion = await groq.chat.completions.create({
+      const completion = await getGroq().chat.completions.create({
         model: 'openai/gpt-oss-120b',
         messages: [
           { role: 'system', content: analysisPrompt },
@@ -623,7 +636,7 @@ router.post('/generate-report', async (req, res) => {
 
     const reportPrompt = `Generate a concise daily operations report in Markdown format for the Modasa Municipal Waste Management system. Include: Executive Summary, Fleet Status, Zone Risk Overview, Flags & Incidents, and Recommendations. Use the live data provided. Keep it to about 400 words.`;
 
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: reportPrompt },

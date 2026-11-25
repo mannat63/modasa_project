@@ -1,15 +1,22 @@
 {
   "name": "wasteroute-ai",
   "version": "1.0.0",
-  "description": "WasteRoute AI — Municipal Waste Management System (Modasa, Gujarat). Root runner for backend + frontend.",
+  "description": "WasteRoute AI — Municipal Waste Management System (Modasa, Gujarat). Single-folder deploy: React frontend + Express API (serverless) on Vercel.",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "seed": "npm run seed --prefix backend",
     "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend"
   },
   "dependencies": {
-    "docx": "^9.6.1"
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.0",
+    "express": "^5.2.1",
+    "groq-sdk": "^1.1.2",
+    "mongoose": "^9.3.3"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
