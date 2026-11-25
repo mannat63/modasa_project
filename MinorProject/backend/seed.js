@@ -4,6 +4,7 @@ require('dotenv').config();
 const Zone = require('./models/Zone');
 const Truck = require('./models/Truck');
 const { greedyRouteOptimize, calculateRouteMetrics } = require('./utils/routingEngine');
+const { buildDistFn } = require('./utils/roadDistance');
 
 const MODASA_CENTER = [23.47, 73.32];
 
@@ -129,22 +130,33 @@ async function seed() {
     // ── 3. Build each truck with REAL routing metrics + road geometry ──
     let totalLoad = 0;
     let geomOk = 0;
+
+    // Pre-generate every truck's depot (~±2km around Modasa) so we can build a
+    // single road-distance matrix covering all depots + zone centres up front.
+    const depots = Array.from({ length: NUM_TRUCKS }, () => [
+      MODASA_CENTER[0] + randFloat(-0.018, 0.018),
+      MODASA_CENTER[1] + randFloat(-0.018, 0.018),
+    ]);
+
+    // One OSRM road-distance matrix for the whole dataset (depots + zone centres).
+    // greedy ordering + metrics then run on REAL road distances; Haversine fallback
+    // if OSRM is unavailable.
+    const allPoints = [...depots, ...zones.map((z) => z.centerPoint)];
+    const roadDist = await buildDistFn(allPoints, { timeoutMs: 8000 });
+    const { sourceFor } = require('./utils/roadDistance');
+    console.log(`Distance basis: ${sourceFor(allPoints) === 'osrm' ? 'OSRM road network' : 'Haversine (OSRM unavailable)'}`);
+
     console.log('Computing routes + road geometry (throttled to be gentle on OSRM)...');
     for (let i = 0; i < NUM_TRUCKS; i++) {
-      // Spread depots around Modasa (~±2km) so trucks originate from varied
-      // points instead of a single depot — reads as a real operation.
-      const depot = [
-        MODASA_CENTER[0] + randFloat(-0.018, 0.018),
-        MODASA_CENTER[1] + randFloat(-0.018, 0.018),
-      ];
+      const depot = depots[i];
       const zoneObjs = buckets[i];
 
       // Order the stops with the greedy (priority + nearest-neighbour) engine
-      const orderedIds = greedyRouteOptimize(zoneObjs, depot);
+      const orderedIds = greedyRouteOptimize(zoneObjs, depot, roadDist);
       const orderedZones = orderedIds.map((id) => zoneById[id]).filter(Boolean);
 
-      // Real distance / duration / load factor
-      const metrics = calculateRouteMetrics(orderedZones, depot);
+      // Real distance / duration / load factor (road-network distances)
+      const metrics = calculateRouteMetrics(orderedZones, depot, roadDist);
       totalLoad += metrics.loadFactor;
 
       // Road-following geometry for depot -> stops -> depot (fallback: straight)

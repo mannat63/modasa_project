@@ -9,7 +9,18 @@ const {
   calculateRouteMetrics,
   greedyRouteOptimize,
 } = require('../utils/routingEngine');
+const { buildDistFn } = require('../utils/roadDistance');
 const { deployAllActiveRoutes } = require('../utils/routeDeploy');
+
+// Build a road-distance function covering every truck depot + zone centre for
+// this request. One cached OSRM matrix call per point-set; Haversine fallback.
+async function roadDistFor(trucks, zones) {
+  const pts = [
+    ...trucks.map((t) => t.depotLocation).filter(Boolean),
+    ...zones.map((z) => z.centerPoint || z.center).filter(Boolean),
+  ];
+  return buildDistFn(pts, { timeoutMs: 4000 });
+}
 
 // ─────────────────────────────────────────────────────────
 // GET /api/simulation/epoch/:number — Simulate bin placement
@@ -39,6 +50,9 @@ router.get('/epoch/:number', async (req, res) => {
     // Zones that got bins in THIS epoch
     const affectedZones = updatedZones.filter((z) => z.hasBin && z.binEpoch === epochNumber);
 
+    // Road-distance basis for this simulation (OSRM matrix, Haversine fallback)
+    const roadDist = await roadDistFor(allTrucks, allZones);
+
     const truckMetrics = [];
     let totalTimeBefore = 0;
     let totalTimeAfter = 0;
@@ -54,11 +68,11 @@ router.get('/epoch/:number', async (req, res) => {
       const afterZones = seq.map((id) => updatedZoneMap[id]).filter(Boolean);
 
       // Re-optimise the route for the simulated state
-      const newSeq = greedyRouteOptimize(afterZones, depot);
+      const newSeq = greedyRouteOptimize(afterZones, depot, roadDist);
       const afterZonesOrdered = newSeq.map((id) => updatedZoneMap[id]).filter(Boolean);
 
-      const before = calculateRouteMetrics(beforeZones, depot);
-      const after  = calculateRouteMetrics(afterZonesOrdered, depot);
+      const before = calculateRouteMetrics(beforeZones, depot, roadDist);
+      const after  = calculateRouteMetrics(afterZonesOrdered, depot, roadDist);
 
       totalTimeBefore += before.estimatedDuration;
       totalTimeAfter  += after.estimatedDuration;
@@ -164,6 +178,9 @@ router.post('/epoch/:number/deploy', async (req, res) => {
     const allTrucks = await Truck.find({ status: 'active' }).lean();
     const updatedTrucks = [];
 
+    // Road-distance basis (OSRM matrix over active depots + zones, Haversine fallback)
+    const roadDist = await roadDistFor(allTrucks, freshZones);
+
     for (const truck of allTrucks) {
       const seq = truck.routeSequence || truck.assignedZones || [];
       if (seq.length === 0) continue;
@@ -172,10 +189,10 @@ router.post('/epoch/:number/deploy', async (req, res) => {
       const depot = truck.depotLocation || [23.47, 73.32];
 
       // Re-optimise route order using updated priority weights
-      const newSequenceIds = greedyRouteOptimize(truckZones, depot);
+      const newSequenceIds = greedyRouteOptimize(truckZones, depot, roadDist);
       // Calculate metrics on the re-ordered zones so duration uses new hasBin flags
       const newSequenceZones = newSequenceIds.map((id) => zoneMap[id]).filter(Boolean);
-      const metrics = calculateRouteMetrics(newSequenceZones, depot);
+      const metrics = calculateRouteMetrics(newSequenceZones, depot, roadDist);
 
       console.log(`[DEPLOY] Truck ${truck.truckId}: old duration=${truck.estimatedDuration} min → new=${metrics.estimatedDuration} min`);
 
@@ -236,13 +253,16 @@ router.post('/fleet', async (req, res) => {
     const allTrucks = await Truck.find().lean();
     const allZones = await Zone.find().lean();
 
-    const result = fleetOptimize(allTrucks, allZones, targetFleetSize);
+    // Road-distance basis (OSRM matrix over all depots + zones, Haversine fallback)
+    const roadDist = await roadDistFor(allTrucks, allZones);
+
+    const result = fleetOptimize(allTrucks, allZones, targetFleetSize, roadDist);
 
     // If not feasible, try to find minimum feasible fleet size
     let minimumFeasible = null;
     if (!result.feasible) {
       for (let size = targetFleetSize + 1; size <= allTrucks.length; size++) {
-        const test = fleetOptimize(allTrucks, allZones, size);
+        const test = fleetOptimize(allTrucks, allZones, size, roadDist);
         if (test.feasible) {
           minimumFeasible = size;
           break;
@@ -302,7 +322,8 @@ router.post('/fleet/deploy', async (req, res) => {
     const allTrucks = await Truck.find().lean();
     const allZones = await Zone.find().lean();
 
-    const result = fleetOptimize(allTrucks, allZones, targetFleetSize);
+    const roadDist = await roadDistFor(allTrucks, allZones);
+    const result = fleetOptimize(allTrucks, allZones, targetFleetSize, roadDist);
     if (!result.feasible) {
       return res.status(400).json({ success: false, error: 'Fleet plan is not feasible', reasons: result.infeasibleReasons });
     }

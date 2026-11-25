@@ -11,6 +11,17 @@ const {
   calculateRouteMetrics,
   greedyRouteOptimize,
 } = require('../utils/routingEngine');
+const { buildDistFn } = require('../utils/roadDistance');
+
+// Road-distance function over the given depots + zone centres for a request
+// (cached OSRM matrix call; transparent Haversine fallback).
+async function roadDistFor(trucks, zones) {
+  const pts = [
+    ...(trucks || []).map((t) => t.depotLocation).filter(Boolean),
+    ...(zones || []).map((z) => z.centerPoint || z.center).filter(Boolean),
+  ];
+  return buildDistFn(pts, { timeoutMs: 4000 });
+}
 
 // ── Groq client (lazy) ──────────────────────────────────
 // Instantiated on first use so a missing GROQ_API_KEY only fails the AI
@@ -191,6 +202,9 @@ router.post('/action', async (req, res) => {
     const zoneMap = {};
     for (const z of zones) zoneMap[z.zoneId] = z;
 
+    // Road-distance basis for all re-routing in this action (OSRM, Haversine fallback)
+    const roadDist = await roadDistFor(trucks, zones);
+
     let affectedTrucks = [];
     let proposedChanges = [];
 
@@ -205,7 +219,7 @@ router.post('/action', async (req, res) => {
       const nearbyZoneIds = new Set();
       for (const z of zones) {
         if (!z.centerPoint) continue;
-        const d = calculateDistance(refPoint, z.centerPoint);
+        const d = roadDist(refPoint, z.centerPoint);
         if (d <= maxDist) nearbyZoneIds.add(z.zoneId);
       }
 
@@ -219,7 +233,7 @@ router.post('/action', async (req, res) => {
             .filter((id) => !nearbyZoneIds.has(id))
             .map((id) => zoneMap[id])
             .filter(Boolean);
-          const newSeq = greedyRouteOptimize(remainingZones, t.depotLocation || [23.4671, 73.0155]);
+          const newSeq = greedyRouteOptimize(remainingZones, t.depotLocation || [23.4671, 73.0155], roadDist);
 
           affectedTrucks.push(t.truckId);
           proposedChanges.push({
@@ -256,7 +270,7 @@ router.post('/action', async (req, res) => {
           let bestDist = Infinity;
           for (const ot of otherTrucks) {
             const depot = ot.depotLocation || [23.4671, 73.0155];
-            const d = calculateDistance(depot, blockedZone.centerPoint || [23.4671, 73.0155]);
+            const d = roadDist(depot, blockedZone.centerPoint || [23.4671, 73.0155]);
             if (d < bestDist) {
               bestDist = d;
               absorber = ot;
@@ -268,7 +282,7 @@ router.post('/action', async (req, res) => {
             .filter((id) => id !== zoneId)
             .map((id) => zoneMap[id])
             .filter(Boolean);
-          const newSeq = greedyRouteOptimize(remainingZones, assignedTruck.depotLocation || [23.4671, 73.0155]);
+          const newSeq = greedyRouteOptimize(remainingZones, assignedTruck.depotLocation || [23.4671, 73.0155], roadDist);
 
           proposedChanges.push({
             truckId: assignedTruck.truckId,
@@ -361,7 +375,7 @@ router.post('/action', async (req, res) => {
             .filter((id) => !excludeSet.has(id))
             .map((id) => zoneMap[id])
             .filter(Boolean);
-          const newSeq = greedyRouteOptimize(remainingZones, truck.depotLocation || [23.4671, 73.0155]);
+          const newSeq = greedyRouteOptimize(remainingZones, truck.depotLocation || [23.4671, 73.0155], roadDist);
 
           proposedChanges.push({
             truckId: truck.truckId,
@@ -437,7 +451,7 @@ router.post('/action', async (req, res) => {
           for (let i = 0; i < remaining.length; i++) {
             const z = remaining[i];
             const u = zoneUrgency[z.zoneId]?.total || 1.0;
-            const dist = calculateDistance(currentLoc, z.centerPoint || [23.4671, 73.0155]);
+            const dist = roadDist(currentLoc, z.centerPoint || [23.4671, 73.0155]);
             
             // Optimization logic: strongly favor urgency, but factor in travel distance linearly.
             // By subtracting distance (in km) * penalty, a highly urgent bin (score 90) easily beats
@@ -570,9 +584,10 @@ router.post('/suggest-route', async (req, res) => {
     const zoneObjects = await Zone.find({ zoneId: { $in: targetZoneIds } }).lean();
     const depot = truck.depotLocation || [23.4671, 73.0155];
 
-    const optimizedSeq = greedyRouteOptimize(zoneObjects, depot);
+    const roadDist = await roadDistFor([truck], zoneObjects);
+    const optimizedSeq = greedyRouteOptimize(zoneObjects, depot, roadDist);
     const orderedZones = optimizedSeq.map((id) => zoneObjects.find((z) => z.zoneId === id)).filter(Boolean);
-    const metrics = calculateRouteMetrics(orderedZones, depot);
+    const metrics = calculateRouteMetrics(orderedZones, depot, roadDist);
 
     res.json({
       success: true,
@@ -708,6 +723,9 @@ router.post('/deploy-road-blocked', async (req, res) => {
     const zoneMap = {};
     for (const z of freshZones) zoneMap[z.zoneId] = z;
 
+    const allTrucksForDist = await Truck.find().lean();
+    const roadDist = await roadDistFor(allTrucksForDist, freshZones);
+
     for (const change of proposedChanges) {
       if (!change.truckId || !change.proposedRoute) continue;
       const truck = await Truck.findOne({ truckId: change.truckId }).lean();
@@ -715,7 +733,7 @@ router.post('/deploy-road-blocked', async (req, res) => {
 
       const depot = truck.depotLocation || [23.4671, 73.0155];
       const seqZones = change.proposedRoute.map((id) => zoneMap[id]).filter(Boolean);
-      const metrics = require('../utils/routingEngine').calculateRouteMetrics(seqZones, depot);
+      const metrics = calculateRouteMetrics(seqZones, depot, roadDist);
 
       await Truck.findOneAndUpdate(
         { truckId: change.truckId },
