@@ -1,8 +1,15 @@
 import axios from 'axios';
 
-// In production (Vercel) the API is served from the same origin at /api.
-// In local dev it defaults to the Express server on :5000.
-const BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5000/api');
+// API base is chosen by the RUNTIME host, not the build-time mode, so a stray
+// localhost VITE_API_URL can never leak into a deployed build:
+//  - on a real deployment (any non-localhost host) the API is same-origin at /api
+//  - on localhost dev it talks to the Express server on :5000 (VITE_API_URL may override)
+const isLocalHost =
+  typeof window !== 'undefined' &&
+  /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+const BASE = isLocalHost
+  ? (import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
+  : '/api';
 
 const api = axios.create({
   baseURL: BASE,
